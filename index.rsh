@@ -1,173 +1,63 @@
-
 'reach 0.1';
+const amt =1
 
-// constants
-const amt = 1
- const [ isOutcome,NO_MATCH, A_MATCH,TIMEOUT] = makeEnum(3);
- 
- const resultOfRaffle=(bobsNum,aliceWinningNum)=>{
-  const res=bobsNum==aliceWinningNum? 1: 0
-  return res
- }
-
-forall(UInt,bobsNum =>
-  forall(UInt, aliceWinningNum =>
-    assert(isOutcome(resultOfRaffle(bobsNum,aliceWinningNum)))));
-
-const commonInteract = {
-  getRandomNumber: Fun([UInt], UInt),
+const shared={
+  getNum:Fun([UInt],UInt),
+  seeOutcome:Fun([UInt],Null)
 }
-
-const AInteract = {
-  ...commonInteract,
-  ...hasRandom,
-  getUsers: Fun([], Null),
-  startRaffleDraw: Fun([], Object({
-    nftId: Token,
-    numberOfTickets: UInt,
-    numberOfBobs: UInt,
-  })),
-  displayHashValue: Fun([Digest], Null),
-  displayWinningNumber: Fun([UInt], Null),
-  deadline: UInt,
-  rewardReady:Fun([],Null),
-  seeOutcome:Fun([UInt],Null),
-  balanceReady:Fun([],Null)
-}
-
-// const BInteract = {
-//   ...commonInteract,
-//   // ...hasRandom,
-//   // showRaffleNumber: Fun([UInt], UInt),
-// }
-
 export const main = Reach.App(() => {
-  setOptions({ untrustworthyMaps: true })
-  const A = Participant('Alice', AInteract);
-  const B = API('Bob', {
-  
-    join: Fun([UInt], Bool),
-    getReward: Fun([],UInt),
-    seeBobsOutcome:Fun([],UInt),
-    seeBalance:Fun([],Bool)
+  const A = Participant('Alice', {
+    // Specify Alice's interact interface 
+    ...hasRandom,
+    ...shared,
+    startRaffle:Fun([],Object({
+      nftId:Token,
+      totalTickets:UInt
+    })),
+    seeHash:Fun([Digest],Null)
+  });
+  const B = Participant('Bob', {
+    ...shared,
+    showNum:Fun([UInt],Null),
+    seeWinningNum:Fun([UInt],Null),
+    // Specify Bob's interact interface here
   });
   init();
+  A.only(()=>{
+    const {nftId, totalTickets}=declassify(interact.startRaffle())
+    const _winningNum =interact.getNum(totalTickets)
+   const [_commitA,_saltA] =makeCommitment(interact,_winningNum)
+   const commitA=declassify(_commitA)
+  })
   // The first one to publish deploys the contract
-  A.only(() => {
-    const { nftId, numberOfTickets, numberOfBobs } = declassify(interact.startRaffleDraw());
-    const _winningNumber = interact.getRandomNumber(numberOfTickets)
-    const [_commitAlice, _saltAlice] = makeCommitment(interact, _winningNumber)
-    const commitAlice = declassify(_commitAlice)
-  });
-  A.publish(nftId, numberOfTickets, numberOfBobs, commitAlice);
-  A.interact.displayHashValue(commitAlice);
-  commit()
-  A.pay([[amt, nftId]])
-  assert(balance(nftId) == amt, "balance of NFT is wrong");
-  A.interact.getUsers();
+  A.publish(nftId, totalTickets,commitA);
+  A.interact.seeHash(commitA)
+   commit();
+   A.pay([[amt,nftId]])
+   commit()
+   unknowable(B,A(_winningNum,_saltA))
 
-
-
-
-  const bobsMap = new Map(Address, UInt);
-  const [bobAdded] = parallelReduce([0])
-    .invariant(balance(nftId) == amt)
-    .while(bobAdded <numberOfTickets)
-    .api_(B.join, (num) => {
-      // check(num == UInt, "number of Bobs is wrong");
-      return [0, (k) => {
-        k(true)
-        bobsMap[this] = num
-        return [bobAdded + 1]
-      }
-
-      ]
-    })
-    .timeout(relativeTime(10), () => {
-      Anybody.publish()
-      return [
-        bobAdded + 1
-      ]
-    })
-
-  A.only(() => {
-    const saltAlice = declassify(_saltAlice)
-    const winningNumber = declassify(_winningNumber)
-    interact.displayWinningNumber(winningNumber);
-  });
-  commit()
-  A.publish(saltAlice, winningNumber);
-  checkCommitment(commitAlice, saltAlice, winningNumber);
-
-  A.interact.rewardReady();
- 
-  const [winnerAddress, numberOfDraws,outcome,kM] = parallelReduce([A, 0,0,true])
-    .invariant(balance(nftId) == amt)
-    // .while(numberOfDraws < numberOfTickets)
-   .while(kM)
-
-    .api_(B.getReward, () => {
-      return [0, (notify) => {
-        const number = fromSome(bobsMap[this],0)
-        const address = number == winningNumber ? this : A
-        notify(number)
-        return [address, numberOfDraws ,outcome,kM]
-      }]
-    })
-    .api_(B.seeBobsOutcome,() => {
-      return[0,(k)=>{
-      
-        const number = fromSome(bobsMap[this],0)
-        const address = number == winningNumber ? this : A
-        // const raffleOutcome= number == winningNumber ? A_MATCH : NO_MATCH
-        const raffleOutcome= resultOfRaffle(number,winningNumber)
-        const kM_N=numberOfDraws < numberOfTickets? true :false
-        k(raffleOutcome)
-        return [address, numberOfDraws +1,raffleOutcome,kM_N]
-
-      }]
-    })
-    .timeout(relativeTime(10), () => {
-      Anybody.publish()
-      const number = fromSome(bobsMap[this],0)
-        const address = number == winningNumber ? this : A
-      return [
-        address, numberOfDraws +1,TIMEOUT,false
-        
-      ]
-    })
-   A.interact.seeOutcome(outcome)
-  if (winnerAddress) {
-    //transfer(amt, nftId).to(winnerAddress)
-    transfer([0, [amt, nftId]]).to(winnerAddress);
-  } else {
-    //transfer(amt, nftId).to(A)
-    transfer([0, [amt, nftId]]).to(A);
-  }
-  transfer(balance()).to(A)
-
-  A.interact.balanceReady();
-
-  const [usersCount,kG] = parallelReduce([0,true])
-  .invariant(balance(nftId) < 1)
-  //.while(usersCount < numberOfTickets)
-  .while(kG)
-  .api_(B.seeBalance, () => {
-    return [0, (notify) => {
-      const number = fromSome(bobsMap[this],0)
-      const isWinner = number == winningNumber ? true : false
-      notify(isWinner)
-      const kG_N=usersCount <numberOfTickets? true :false
-      return [usersCount+1,kG_N]
-    }]
+   B.only(()=>{
+    const chosenNum = declassify(interact.getNum(totalTickets))
+    interact.showNum(chosenNum)
+   })
+  // The second one to publish always attaches
+  B.publish(chosenNum);
+  commit();
+  A.only(()=>{
+    const saltA =declassify(_saltA)
+    const winnigNum=declassify(_winningNum)
   })
-  .timeout(relativeTime(10), () => {
-    Anybody.publish()
-    return [
-      usersCount,false
-    ]
+  A.publish(saltA,winnigNum)
+  checkCommitment(commitA,saltA,winnigNum)
+
+  B.interact.seeWinningNum(winnigNum)
+  const outcome=(chosenNum ==winnigNum ? 1:0)
+  transfer(amt,nftId).to(outcome==0?A:B)
+  each([A,B],()=>{
+    interact.seeOutcome(outcome)
   })
-  transfer(balance()).to(A)
   commit()
+  // write your program here
   exit();
 });
