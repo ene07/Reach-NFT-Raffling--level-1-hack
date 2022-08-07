@@ -131,7 +131,7 @@ export const main = Reach.App(() => {
         
       ]
     })
-
+   A.interact.seeOutcome(outcome)
   if (winnerAddress) {
     transfer(amt, nftId).to(winnerAddress)
   } else {

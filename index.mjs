@@ -89,7 +89,7 @@ const claimRewards=async()=>{
       console.log(`${who} balance: ${ getBal}`)
     } catch (error) {
       // console.log(`${who} did not get a raffle number`)
-      console.log(error)
+      //console.log(error)
     }
    })
 }
