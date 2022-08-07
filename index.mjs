@@ -3,8 +3,8 @@ import * as backend from './build/index.main.mjs';
 const stdlib = loadStdlib(process.env);
 
 // constants
-const numberOfTickets = 10;
-const numberOfBobs = 10;
+const numberOfTickets = 3;
+const numberOfBobs = 3;
 
 // helper functions
 const getRandomNumber = (num) => {
@@ -18,7 +18,7 @@ const accAlice = await stdlib.newTestAccount(startingBalance);
 const ctcAlice = accAlice.contract(backend)
 
 console.log("Creating NFT")
-const raffleNFT = await stdlib.launchToken(accAlice, "Goodness Baby", "GNB", { supply: 1 })
+const raffleNFT = await stdlib.launchToken(accAlice, "Audio NFT", "AMT", { supply: 1 })
 const raffleParameters = {
   nftId: raffleNFT.id,
   numberOfTickets,
@@ -28,32 +28,25 @@ const raffleParameters = {
 const OUTCOME=["Your Number is not a match","Your number matches","Timeout"]
 const users = [];
 const createUsers = async () => {
-  console.log(`\nCreating 10 users\n`)
+  console.log(`\nCreating ${numberOfBobs} users`)
   const newAccBob = async (who) => {
     const acc = await stdlib.newTestAccount(startingBalance);
-    // accept token Id
+ 
+   
     acc.tokenAccept(raffleParameters.nftId)
     users.push({who, acc})
     const ctc = acc.contract(backend, ctcAlice.getInfo());
-    // const [bobRaffleNumber] = await ctc.apis.B.getRandomNumber(numberOfTickets)
-    //   console.log(`${who} raffle's number is ${bobRaffleNumber}`)
     const randomNumber = Math.floor((Math.random() * 10) + 1);
-    // const getBal =await stdlib.balanceOf(acc,raffleParameters.nftId)
+   
     try {
       const value = await ctc.apis.Bob.join(randomNumber)
       const word = value ? "joined" : "did not join"
   
       console.log(`${who}  ${word} raffle`)
-      // await stdlib.wait(1)
-      // const bobRaffleNumber = await ctc.apis.Bob.getReward()
-      // console.log(`${who} raffle's number is: ${bobRaffleNumber}`)
-      // const bobOutcome= await ctc.apis.Bob.seeOutcome()
-      // console.log(`${who}:${OUTCOME[bobOutcome]}`)
-  
-      // console.log(`${who} balance: ${ getBal}`)
+     
     } catch (error) {
-      // console.log(`${who} did not get a raffle number`)
-      console.log(error)
+       console.log(`${who} did not get a raffle number`)
+    
     }
   }
 
@@ -61,13 +54,7 @@ const createUsers = async () => {
   await newAccBob("Thomas")
   await newAccBob("Nick")
   await newAccBob("Jack")
-  await newAccBob("Candance")
-  await newAccBob("Jay")
-  await newAccBob("Bobby")
-  await newAccBob("Abram")
-  await newAccBob("Moses")
-  await newAccBob("precious")
-  await newAccBob("precious")
+
  
 
   
@@ -78,6 +65,7 @@ const claimRewards=async()=>{
      const acc =user.acc
      const who=user.who
      const ctc = acc.contract(backend, ctcAlice.getInfo());
+     acc.tokenAccept(raffleParameters.nftId)
      const getBal =await stdlib.balanceOf(acc,raffleParameters.nftId)
 
      try {
@@ -86,12 +74,36 @@ const claimRewards=async()=>{
       const bobOutcome= await ctc.apis.Bob.seeBobsOutcome()
       console.log(`${who}:${OUTCOME[bobOutcome]}`)
   
-      console.log(`${who} balance: ${ getBal}`)
+     
     } catch (error) {
-      // console.log(`${who} did not get a raffle number`)
-      //console.log(error)
+     
     }
    })
+}
+
+const showBalances=async=>{
+  users.map(async(user)=>{
+    const acc =user.acc
+    const who=user.who
+    const ctc = acc.contract(backend, ctcAlice.getInfo());
+   // const getBal =await stdlib.balanceOf(acc,raffleParameters.nftId)
+   const [netAmnt, nftAmnt] = await stdlib.balancesOf(acc, [
+    null,
+    raffleParameters.nftId,
+  ]);
+    try {
+      const value= await ctc.apis.Bob.seeBalance()
+    if(value) returnconsole.log(
+      `${who} has ${fmt(netAmnt)} ${stdlib.standardUnit
+      } and ${nftAmnt} ${raffleNFT.name}`
+    );
+    console.log(`${who}:${nftAmnt} ${raffleNFT.name}`)
+ 
+   } catch (error) {
+    
+   }
+  })
+  console.log('Goodbye, Alice and Bob!');
 }
 
 const commonInteract = {
@@ -106,7 +118,7 @@ const AliceInteract = {
   ...stdlib.hasConsoleLogger ,
   ...stdlib.hasRandom,
   getUsers:()=>{
-    console.log('get users')
+    console.log('getting users')
    createUsers()
     
   },
@@ -115,31 +127,32 @@ const AliceInteract = {
     return raffleParameters
   },
   displayHashValue: (hash) => {
-    console.log(`Winning hash value is ${hash}`)
+    console.log(`\n Winning hash value is ${hash} `)
   },
   displayWinningNumber: (winningNumber) => {
-    console.log(`Winning raffle number is ${winningNumber}`)
+    console.log(`\n Winning raffle number is ${winningNumber} `)
   },
   seeOutcome:(outcome)=>{
 
-    console.log(`Alice saw:${OUTCOME[outcome]}`)
+    console.log(`\n Alice saw:${OUTCOME[outcome]} `)
   },
   rewardReady:()=>{
-    console.log("claiming rewards")
+    console.log(`\n claiming rewards `)
     claimRewards()
+  },
+  balanceReady:()=>{
+    console.log(`\n Showing balance of users `)
+    showBalances()
   }
 } 
 
 
 
 console.log('Starting backends...');
-// await backend.Alice(ctcAlice, AliceInteract)
+
 await Promise.all([
   backend.Alice(ctcAlice, AliceInteract),
-  // backend.Bob(ctcBob, {
-  //   ...stdlib.hasRandom,
-  //   // implement Bob's interact object here
-  // }),
+ 
 ]);
 
 console.log('Goodbye, Alice and Bob!');

@@ -31,7 +31,8 @@ const AInteract = {
   displayWinningNumber: Fun([UInt], Null),
   deadline: UInt,
   rewardReady:Fun([],Null),
-  seeOutcome:Fun([UInt],Null)
+  seeOutcome:Fun([UInt],Null),
+  balanceReady:Fun([],Null)
 }
 
 // const BInteract = {
@@ -47,7 +48,8 @@ export const main = Reach.App(() => {
   
     join: Fun([UInt], Bool),
     getReward: Fun([],UInt),
-    seeBobsOutcome:Fun([],UInt)
+    seeBobsOutcome:Fun([],UInt),
+    seeBalance:Fun([],Bool)
   });
   init();
   // The first one to publish deploys the contract
@@ -99,15 +101,17 @@ export const main = Reach.App(() => {
 
   A.interact.rewardReady();
  
-  const [winnerAddress, numberOfDraws,outcome] = parallelReduce([A, 0,0])
+  const [winnerAddress, numberOfDraws,outcome,kM] = parallelReduce([A, 0,0,true])
     .invariant(balance(nftId) == amt)
-    .while(numberOfDraws < numberOfTickets)
+    // .while(numberOfDraws < numberOfTickets)
+   .while(kM)
+
     .api_(B.getReward, () => {
       return [0, (notify) => {
         const number = fromSome(bobsMap[this],0)
         const address = number == winningNumber ? this : A
         notify(number)
-        return [address, numberOfDraws ,outcome]
+        return [address, numberOfDraws ,outcome,kM]
       }]
     })
     .api_(B.seeBobsOutcome,() => {
@@ -117,8 +121,9 @@ export const main = Reach.App(() => {
         const address = number == winningNumber ? this : A
         // const raffleOutcome= number == winningNumber ? A_MATCH : NO_MATCH
         const raffleOutcome= resultOfRaffle(number,winningNumber)
+        const kM_N=numberOfDraws < 2? true :false
         k(raffleOutcome)
-        return [address, numberOfDraws +1,raffleOutcome]
+        return [address, numberOfDraws +1,raffleOutcome,kM_N]
 
       }]
     })
@@ -127,18 +132,42 @@ export const main = Reach.App(() => {
       const number = fromSome(bobsMap[this],0)
         const address = number == winningNumber ? this : A
       return [
-        address, numberOfDraws +1,TIMEOUT
+        address, numberOfDraws +1,TIMEOUT,false
         
       ]
     })
    A.interact.seeOutcome(outcome)
   if (winnerAddress) {
-    transfer(amt, nftId).to(winnerAddress)
+    //transfer(amt, nftId).to(winnerAddress)
+    transfer([0, [amt, nftId]]).to(winnerAddress);
   } else {
-    transfer(amt, nftId).to(A)
+    //transfer(amt, nftId).to(A)
+    transfer([0, [amt, nftId]]).to(A);
   }
   transfer(balance()).to(A)
- A.interact.seeOutcome(outcome)
+
+  A.interact.balanceReady();
+
+  const [usersCount,kG] = parallelReduce([0,true])
+  .invariant(balance(nftId) < 1)
+  //.while(usersCount < numberOfTickets)
+  .while(kG)
+  .api_(B.seeBalance, () => {
+    return [0, (notify) => {
+      const number = fromSome(bobsMap[this],0)
+      const isWinner = number == winningNumber ? true : false
+      notify(isWinner)
+      const kG_N=usersCount <numberOfTickets? true :false
+      return [usersCount+1,kG_N]
+    }]
+  })
+  .timeout(relativeTime(10), () => {
+    Anybody.publish()
+    return [
+      usersCount,false
+    ]
+  })
+  transfer(balance()).to(A)
   commit()
   exit();
 });
