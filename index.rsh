@@ -121,7 +121,7 @@ export const main = Reach.App(() => {
         const address = number == winningNumber ? this : A
         // const raffleOutcome= number == winningNumber ? A_MATCH : NO_MATCH
         const raffleOutcome= resultOfRaffle(number,winningNumber)
-        const kM_N=numberOfDraws < 2? true :false
+        const kM_N=numberOfDraws < numberOfTickets? true :false
         k(raffleOutcome)
         return [address, numberOfDraws +1,raffleOutcome,kM_N]
 
