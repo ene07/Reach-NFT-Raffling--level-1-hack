@@ -3,8 +3,16 @@
 
 // constants
 const amt = 1
- const [ isOutcome, A_MATCH, NO_MATCH] = makeEnum(2);
+ const [ isOutcome,NO_MATCH, A_MATCH,TIMEOUT] = makeEnum(3);
+ 
+ const resultOfRaffle=(bobsNum,aliceWinningNum)=>{
+  const res=bobsNum==aliceWinningNum? 1: 0
+  return res
+ }
 
+forall(UInt,bobsNum =>
+  forall(UInt, aliceWinningNum =>
+    assert(isOutcome(resultOfRaffle(bobsNum,aliceWinningNum)))));
 
 const commonInteract = {
   getRandomNumber: Fun([UInt], UInt),
@@ -62,7 +70,7 @@ export const main = Reach.App(() => {
   const bobsMap = new Map(Address, UInt);
   const [bobAdded] = parallelReduce([0])
     .invariant(balance(nftId) == amt)
-    .while(true)
+    .while(bobAdded <numberOfTickets)
     .api_(B.join, (num) => {
       // check(num == UInt, "number of Bobs is wrong");
       return [0, (k) => {
@@ -73,7 +81,7 @@ export const main = Reach.App(() => {
 
       ]
     })
-    .timeout(absoluteTime(10), () => {
+    .timeout(relativeTime(10), () => {
       Anybody.publish()
       return [
         bobAdded + 1
@@ -107,11 +115,21 @@ export const main = Reach.App(() => {
       
         const number = fromSome(bobsMap[this],0)
         const address = number == winningNumber ? this : A
-        const raffleOutcome= number == winningNumber ? A_MATCH : NO_MATCH
+        // const raffleOutcome= number == winningNumber ? A_MATCH : NO_MATCH
+        const raffleOutcome= resultOfRaffle(number,winningNumber)
         k(raffleOutcome)
         return [address, numberOfDraws +1,raffleOutcome]
 
       }]
+    })
+    .timeout(relativeTime(10), () => {
+      Anybody.publish()
+      const number = fromSome(bobsMap[this],0)
+        const address = number == winningNumber ? this : A
+      return [
+        address, numberOfDraws +1,TIMEOUT
+        
+      ]
     })
 
   if (winnerAddress) {

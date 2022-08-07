@@ -25,7 +25,7 @@ const raffleParameters = {
   numberOfBobs,
 }
 
-const OUTCOME=["Your number matches","Your Number is not a match"]
+const OUTCOME=["Your Number is not a match","Your number matches","Timeout"]
 const users = [];
 const createUsers = async () => {
   console.log(`\nCreating 10 users\n`)
@@ -64,16 +64,17 @@ const createUsers = async () => {
   await newAccBob("Candance")
   await newAccBob("Jay")
   await newAccBob("Bobby")
-  await newAccBob("Candance")
-  await newAccBob("Jay")
-  await newAccBob("Bobby")
+  await newAccBob("Abram")
+  await newAccBob("Moses")
+  await newAccBob("precious")
+  await newAccBob("precious")
  
 
   
 }
 
 const claimRewards=async()=>{
-   users.map((user)=>{
+   users.map(async(user)=>{
      const acc =user.acc
      const who=user.who
      const ctc = acc.contract(backend, ctcAlice.getInfo());
@@ -82,7 +83,7 @@ const claimRewards=async()=>{
      try {
       const bobRaffleNumber = await ctc.apis.Bob.getReward()
       console.log(`${who} raffle's number is: ${bobRaffleNumber}`)
-      const bobOutcome= await ctc.apis.Bob.seeOutcome()
+      const bobOutcome= await ctc.apis.Bob.seeBobsOutcome()
       console.log(`${who}:${OUTCOME[bobOutcome]}`)
   
       console.log(`${who} balance: ${ getBal}`)
